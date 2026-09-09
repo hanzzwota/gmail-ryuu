@@ -8,13 +8,47 @@ export function useAuth() {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
+      if (next) {
+        setSession(next);
+      } else {
+        const stored = localStorage.getItem("app_user_session");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed?.access_token) {
+              setSession(parsed);
+            } else {
+              setSession(null);
+            }
+          } catch {
+            setSession(null);
+          }
+        } else {
+          setSession(null);
+        }
+      }
       setLoading(false);
     });
+
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      if (data.session) {
+        setSession(data.session);
+      } else {
+        const stored = localStorage.getItem("app_user_session");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed?.access_token) {
+              setSession(parsed);
+            }
+          } catch {
+            // Ignore
+          }
+        }
+      }
       setLoading(false);
     });
+
     return () => sub.subscription.unsubscribe();
   }, []);
 

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { NeoButton, NeoCard, NeoInput, NeoLabel } from "@/components/neo";
 import { useAuth } from "@/hooks/useAuth";
-import { resolveLoginEmail } from "@/lib/auth.functions";
+import { resolveLoginEmail, serverLogin, serverRegister } from "@/lib/auth.functions";
 
 type AuthSearch = { mode?: "login" | "register" };
 
@@ -75,99 +75,71 @@ function AuthPage() {
 
     try {
       if (isRegister) {
-        let regEmail = email.trim();
-        let regUsername = username.trim();
-
-        if (regUsername.toLowerCase() === "ryuu0508" || regEmail.toLowerCase().includes("ryuu")) {
-          regEmail = "rehanrehanhidayat57@gmail.com";
-          regUsername = "Ryuu0508";
-        } else if (!regEmail.includes("@")) {
-          regEmail = `${regEmail.toLowerCase().replace(/\s+/g, "")}@gmail.com`;
-        }
-
-        const { data, error } = await supabase.auth.signUp({
-          email: regEmail,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: { username: regUsername || regEmail.split("@")[0], whatsapp: whatsapp.trim() },
+        const res = await serverRegister({
+          data: {
+            email: email.trim(),
+            password,
+            username: username.trim(),
+            whatsapp: whatsapp.trim(),
           },
         });
-        if (error) throw error;
 
-        // Trigger resolve login email to auto-provision profile/role
-        await resolveLoginEmail({ data: { identifier: regEmail } });
-
-        if (data.session) {
-          toast.success("Pendaftaran berhasil. Selamat datang!");
-          navigate({ to: "/dashboard" });
-        } else {
-          toast.success("Pendaftaran berhasil. Silakan masuk.");
-          setIsRegister(false);
+        if (!res.success) {
+          toast.error(res.message);
+          return;
         }
+
+        if (res.session) {
+          try {
+            document.cookie = `sb-access-token=${res.session.access_token}; path=/; max-age=2592000; SameSite=Lax`;
+            localStorage.setItem("sb-access-token", res.session.access_token);
+            localStorage.setItem("app_user_session", JSON.stringify(res.session));
+            await supabase.auth.setSession({
+              access_token: res.session.access_token,
+              refresh_token: res.session.refresh_token,
+            });
+          } catch (err) {
+            console.warn("Client setSession warning:", err);
+          }
+        }
+
+        toast.success("Pendaftaran berhasil. Selamat datang!");
+        window.location.href = "/dashboard";
       } else {
         const rawInput = email.trim();
-        const found = await resolveLoginEmail({ data: { identifier: rawInput } });
-
-        if (!found.found) {
-          const errMsg = `Akun "${rawInput}" tidak terdaftar.`;
-          setAuthError({
-            type: "not_found",
-            message: errMsg,
-            rawInput,
-          });
-          toast.error("Akun belum terdaftar.");
-          return;
-        }
-
-        if (found.suspended) {
-          setAuthError({
-            type: "suspended",
-            message: "Akun kamu sedang dibekukan oleh admin. Hubungi admin.",
-            rawInput,
-          });
-          toast.error("Akun dibekukan.");
-          return;
-        }
-
-        const loginEmail = found.email;
-
-        const { error } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
-          password,
+        const res = await serverLogin({
+          data: {
+            identifier: rawInput,
+            password,
+          },
         });
 
-        if (error) {
-          if ("code" in error && error.code === "email_not_confirmed") {
-            setAuthError({
-              type: "general",
-              message: "Email belum dikonfirmasi. Cek inbox email kamu.",
-              rawInput,
-            });
-            throw new Error("Email belum dikonfirmasi. Cek inbox email kamu.");
-          }
-          if (
-            error.message?.includes("Invalid login credentials") ||
-            ("code" in error && error.code === "invalid_credentials")
-          ) {
-            setAuthError({
-              type: "wrong_password",
-              message: "Password yang kamu masukkan salah. Silakan coba lagi.",
-              rawInput,
-            });
-            toast.error("Password salah.");
-            return;
-          }
+        if (!res.success) {
           setAuthError({
-            type: "general",
-            message: error.message || "Gagal masuk.",
+            type: (res.errorType as "not_found" | "wrong_password" | "suspended") || "general",
+            message: res.message || "Gagal masuk.",
             rawInput,
           });
-          throw new Error(error.message || "Gagal masuk.");
+          toast.error(res.message || "Gagal masuk.");
+          return;
         }
 
-        toast.success("Selamat datang kembali!");
-        navigate({ to: "/dashboard" });
+        if (res.session) {
+          try {
+            document.cookie = `sb-access-token=${res.session.access_token}; path=/; max-age=2592000; SameSite=Lax`;
+            localStorage.setItem("sb-access-token", res.session.access_token);
+            localStorage.setItem("app_user_session", JSON.stringify(res.session));
+            await supabase.auth.setSession({
+              access_token: res.session.access_token,
+              refresh_token: res.session.refresh_token,
+            });
+          } catch (err) {
+            console.warn("Client setSession warning:", err);
+          }
+        }
+
+        toast.success(`Selamat datang kembali, ${res.username || "Admin"}!`);
+        window.location.href = "/dashboard";
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Terjadi kesalahan.");
@@ -220,7 +192,7 @@ function AuthPage() {
                   <NeoInput
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Contoh: Ryuu0508"
+                    placeholder="Contoh: user123"
                     required
                   />
                 </div>

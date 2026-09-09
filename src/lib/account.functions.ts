@@ -68,30 +68,61 @@ export const getBootstrap = createServerFn({ method: "GET" })
     const limit = settings?.daily_quota ?? 0;
     const remaining = limit > 0 ? Math.max(0, limit - used) : 999999;
 
-    let isAdmin = roleRes.data === true;
-    if (!isAdmin && profileRes.data) {
-      const uname = profileRes.data.username?.toLowerCase() ?? "";
-      const uemail = profileRes.data.email?.toLowerCase() ?? "";
-      if (
-        uname === "ryuu0508" ||
+    let profile = profileRes.data;
+    if (!profile) {
+      const isDefaultAdmin =
+        userId === "admin-ryuu0508-id" ||
+        context.user?.email?.toLowerCase() === "rehanrehanhidayat57@gmail.com";
+
+      profile = {
+        id: userId,
+        username: isDefaultAdmin ? "Ryuu0508" : (context.user?.email?.split("@")[0] || "Pengguna"),
+        email: context.user?.email || (isDefaultAdmin ? "rehanrehanhidayat57@gmail.com" : null),
+        whatsapp: null,
+        payment_method: null,
+        payment_account: null,
+        suspended: false,
+      };
+
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("profiles").upsert(
+          {
+            id: userId,
+            email: profile.email,
+            username: profile.username,
+          },
+          { onConflict: "id" }
+        );
+      } catch (e) {
+        console.warn("Auto profile creation warning:", e);
+      }
+    }
+
+    let isAdmin = roleRes.data === true || userId === "admin-ryuu0508-id";
+
+    const uname = profile.username?.toLowerCase() ?? "";
+    const uemail = profile.email?.toLowerCase() ?? "";
+    if (
+      !isAdmin &&
+      (uname === "ryuu0508" ||
         uemail.includes("ryuu") ||
-        uemail === "rehanrehanhidayat57@gmail.com"
-      ) {
-        isAdmin = true;
-        try {
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("user_roles").upsert(
-            { user_id: userId, role: "admin" },
-            { onConflict: "user_id,role" }
-          );
-        } catch (e) {
-          console.error("Auto admin upsert failed:", e);
-        }
+        uemail === "rehanrehanhidayat57@gmail.com")
+    ) {
+      isAdmin = true;
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("user_roles").upsert(
+          { user_id: userId, role: "admin" },
+          { onConflict: "user_id,role" }
+        );
+      } catch (e) {
+        console.error("Auto admin upsert failed:", e);
       }
     }
 
     return {
-      profile: profileRes.data ?? null,
+      profile,
       isAdmin,
       settings: {
         dashboard_name: settings?.dashboard_name || "S3L RYU88 GMAIL",
@@ -101,15 +132,15 @@ export const getBootstrap = createServerFn({ method: "GET" })
         min_withdrawal: settings?.min_withdrawal ?? 4000,
         submission_open: settings?.submission_open ?? true,
         deposit_password: settings?.deposit_password || "sgsg1122",
-        whatsapp_link: settings?.whatsapp_link || "https://whatsapp.com/channel/0029VaRyuu0508",
-        tiktok_link: settings?.tiktok_link || "https://tiktok.com/@ryuu0508",
+        whatsapp_link: settings?.whatsapp_link || "https://whatsapp.com",
+        tiktok_link: settings?.tiktok_link || "https://tiktok.com",
         announcement:
           settings?.announcement ||
-          "Halo kawan-kawan! Harap perhatikan rules hari ini sebelum melakukan stor akun. Pastikan akun aktif, tidak duplikat, dan ikuti instruksi admin Ryuu0508. Terima kasih!",
-        announcement_title: settings?.announcement_title || "PENGUMUMAN RESMI ADMIN RYUU0508",
+          "Halo kawan-kawan! Harap perhatikan rules hari ini sebelum melakukan stor akun. Pastikan akun aktif, tidak duplikat, dan ikuti instruksi admin. Terima kasih!",
+        announcement_title: settings?.announcement_title || "PENGUMUMAN RESMI ADMIN",
         rules_today:
           settings?.rules_today ||
-          "1. Wajib akun Gmail aktif dan bisa login.\n2. Tulis satu email Gmail per baris.\n3. Dilarang menyetor akun duplikat atau bekas.\n4. Admin Ryuu0508 berhak menolak akun yang melanggar aturan.",
+          "1. Wajib akun Gmail aktif dan bisa login.\n2. Tulis satu email Gmail per baris.\n3. Dilarang menyetor akun duplikat atau bekas.\n4. Admin berhak menolak akun yang melanggar aturan.",
         human_support_enabled: settings?.human_support_enabled ?? true,
         ai_faq_enabled: settings?.ai_faq_enabled ?? true,
       },

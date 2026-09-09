@@ -57,8 +57,9 @@ export const adminOverview = createServerFn({ method: "GET" })
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
 
-    const [users, todaySubs, pendingSubs, pendingWd, openTickets, paid] = await Promise.all([
+    const [users, totalSubs, todaySubs, pendingSubs, pendingWd, openTickets, paid] = await Promise.all([
       db.from("profiles").select("id", { count: "exact", head: true }),
+      db.from("submissions").select("id", { count: "exact", head: true }),
       db
         .from("submissions")
         .select("id", { count: "exact", head: true })
@@ -69,11 +70,16 @@ export const adminOverview = createServerFn({ method: "GET" })
       db.from("withdrawals").select("amount").eq("status", "PAID"),
     ]);
 
+    const pSubs = pendingSubs.count ?? 0;
+    const pWd = pendingWd.count ?? 0;
+
     return {
       totalUsers: users.count ?? 0,
+      totalSubmissions: totalSubs.count ?? 0,
       todaySubmissions: todaySubs.count ?? 0,
-      pendingSubmissions: pendingSubs.count ?? 0,
-      pendingWithdrawals: pendingWd.count ?? 0,
+      pendingSubmissions: pSubs,
+      pendingWithdrawals: pWd,
+      pendingVerifications: pSubs + pWd,
       openTickets: openTickets.count ?? 0,
       totalPaid: (paid.data ?? []).reduce((s, w) => s + w.amount, 0),
     };

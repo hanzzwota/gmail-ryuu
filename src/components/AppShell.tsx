@@ -47,9 +47,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data } = useBootstrap();
   const navigate = useNavigate();
 
+  const isAdminUser =
+    data?.profile?.username?.toLowerCase() === "ryuu0508" ||
+    data?.profile?.email?.toLowerCase() === "rehanrehanhidayat57@gmail.com";
+
   const signOut = async () => {
-    await supabase.auth.signOut();
-    navigate({ to: "/auth" });
+    localStorage.removeItem("sb-access-token");
+    localStorage.removeItem("app_user_session");
+    document.cookie = "sb-access-token=; path=/; max-age=0;";
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore
+    }
+    window.location.href = "/auth";
   };
 
   return (
@@ -79,16 +90,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {item.label}
               </Link>
             ))}
-            {data?.isAdmin ? (
+            {isAdminUser ? (
               <Link
                 to="/admin"
-                className="mt-2 flex items-center gap-3 rounded-md border-[3px] border-transparent px-3 py-2 font-display text-sm font-bold uppercase transition-colors hover:bg-sidebar-accent"
+                className="mt-3 flex items-center justify-between rounded-md border-[3px] border-ink bg-accent px-3 py-2.5 font-display text-xs font-black uppercase text-accent-foreground shadow-neo hover:opacity-90 transition-all"
                 activeProps={{
-                  className: "border-ink bg-accent text-accent-foreground shadow-neo-sm",
+                  className: "border-ink bg-primary text-primary-foreground shadow-neo",
                 }}
               >
-                <ShieldCheck className="size-4" />
-                Admin
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-emerald-600" />
+                  Dashboard Admin
+                </span>
+                <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-bold text-white">LIVE</span>
               </Link>
             ) : null}
           </nav>
@@ -101,14 +115,34 @@ export function AppShell({ children }: { children: ReactNode }) {
         </aside>
 
         <main className="min-w-0 flex-1">
+          {/* Top Admin Quick Switch Banner for Desktop */}
+          {isAdminUser ? (
+            <div className="mb-4 hidden items-center justify-between rounded-md border-[3px] border-ink bg-accent px-4 py-2.5 text-accent-foreground shadow-neo lg:flex">
+              <div className="flex items-center gap-2 font-display text-xs font-black uppercase">
+                <ShieldCheck className="size-5 text-emerald-600" />
+                <span>Akses Admin Aktif ({data?.profile?.username ?? "Admin"})</span>
+              </div>
+              <Link
+                to="/admin"
+                className="neo-press inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-primary px-3 py-1 font-display text-xs font-black uppercase text-primary-foreground shadow-neo-sm"
+              >
+                ⚡ Beralih ke Dashboard Admin
+              </Link>
+            </div>
+          ) : null}
+
           <header className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:hidden">
             <div className="neo-heading text-xl">
               {data?.settings.dashboard_name ?? "S3L RYU88"}
             </div>
             <div className="flex items-center gap-2">
-              {data?.isAdmin ? (
-                <Link to="/admin">
-                  <NeoBadge tone="info">Admin</NeoBadge>
+              {isAdminUser ? (
+                <Link
+                  to="/admin"
+                  className="neo-press flex items-center gap-1 rounded-md border-[3px] border-ink bg-accent px-2.5 py-1 text-xs font-black uppercase text-accent-foreground shadow-neo-sm"
+                >
+                  <ShieldCheck className="size-3.5" />
+                  <span>Admin</span>
                 </Link>
               ) : null}
               <button
@@ -142,18 +176,28 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 gap-1 border-t-[3px] border-ink bg-card p-2 lg:hidden">
+      <nav className={`fixed inset-x-0 bottom-0 z-40 grid ${isAdminUser ? 'grid-cols-6' : 'grid-cols-5'} gap-1 border-t-[3px] border-ink bg-card p-1.5 lg:hidden`}>
         {mobileItems.map((item) => (
           <Link
             key={item.to}
             to={item.to}
-            className="flex flex-col items-center gap-1 rounded-md border-[3px] border-transparent px-1 py-1.5 text-[10px] font-bold uppercase"
+            className="flex flex-col items-center gap-1 rounded-md border-[2px] border-transparent px-0.5 py-1 text-[9px] font-extrabold uppercase text-center"
             activeProps={{ className: "border-ink bg-primary text-primary-foreground" }}
           >
             <item.icon className="size-4" />
-            {item.label}
+            <span className="truncate max-w-full">{item.label}</span>
           </Link>
         ))}
+        {isAdminUser ? (
+          <Link
+            to="/admin"
+            className="flex flex-col items-center gap-1 rounded-md border-[2px] border-transparent px-0.5 py-1 text-[9px] font-extrabold uppercase text-center bg-accent text-accent-foreground"
+            activeProps={{ className: "border-ink bg-primary text-primary-foreground" }}
+          >
+            <ShieldCheck className="size-4 text-emerald-600" />
+            <span className="truncate max-w-full">Admin</span>
+          </Link>
+        ) : null}
       </nav>
     </div>
   );

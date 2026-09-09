@@ -1,8 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Send, CheckCircle2, XCircle, Search } from "lucide-react";
+import { downloadCSV } from "@/lib/utils";
+import {
+  Send,
+  CheckCircle2,
+  XCircle,
+  Users,
+  Inbox,
+  Clock,
+  RefreshCw,
+  DollarSign,
+  MessageSquare,
+  ShieldCheck,
+  TrendingUp,
+  Download,
+  LayoutDashboard,
+} from "lucide-react";
 import {
   NeoCard,
   NeoButton,
@@ -69,7 +84,11 @@ function fmtDate(value: string | null) {
 
 function AdminPage() {
   const [tab, setTab] = useState<TabId>("setoran");
-  const overview = useQuery({ queryKey: ["admin", "overview"], queryFn: () => adminOverview() });
+  const overview = useQuery({
+    queryKey: ["admin", "overview"],
+    queryFn: () => adminOverview(),
+    refetchInterval: 5000,
+  });
 
   if (overview.isError) {
     return (
@@ -84,22 +103,30 @@ function AdminPage() {
     );
   }
 
-  const o = overview.data;
-
   return (
     <div className="space-y-5">
-      <SectionTitle title="Admin Panel" subtitle="Kelola setoran, penarikan, pengguna, tiket, dan sistem (Ryuu0508)." />
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Stat label="Total Pengguna" value={o?.totalUsers ?? 0} />
-        <Stat label="Setoran Hari Ini" value={o?.todaySubmissions ?? 0} />
-        <Stat label="Setoran Pending" value={o?.pendingSubmissions ?? 0} />
-        <Stat label="Tarik Pending" value={o?.pendingWithdrawals ?? 0} />
-        <Stat label="Tiket Terbuka" value={o?.openTickets ?? 0} />
-        <Stat label="Total Dibayar" value={formatRp(o?.totalPaid ?? 0)} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionTitle
+          title="Admin Panel"
+          subtitle="Kelola setoran, penarikan, pengguna, tiket, dan sistem."
+        />
+        <Link
+          to="/dashboard"
+          className="neo-press inline-flex items-center gap-2 rounded-md border-[3px] border-ink bg-secondary px-3.5 py-2 font-display text-xs font-bold uppercase text-secondary-foreground shadow-neo-sm hover:opacity-90"
+        >
+          <LayoutDashboard className="size-4" />
+          ← Ke Dashboard User
+        </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Real-time Neo-Brutalism Data Overview Section */}
+      <AdminDataOverview
+        overviewData={overview.data}
+        isFetching={overview.isFetching}
+        refetch={overview.refetch}
+      />
+
+      <div className="flex flex-wrap gap-2 pt-2">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -123,14 +150,204 @@ function AdminPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function AdminDataOverview({
+  overviewData,
+  isFetching,
+  refetch,
+}: {
+  overviewData?: {
+    totalUsers: number;
+    totalSubmissions: number;
+    todaySubmissions: number;
+    pendingSubmissions: number;
+    pendingWithdrawals: number;
+    pendingVerifications: number;
+    openTickets: number;
+    totalPaid: number;
+  };
+  isFetching: boolean;
+  refetch: () => void;
+}) {
+  const [lastUpdated, setLastUpdated] = useState<string>(() =>
+    new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+  );
+
+  const handleRefresh = () => {
+    refetch();
+    setLastUpdated(
+      new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    );
+  };
+
+  const o = overviewData;
+
+  const handleDownloadAdminReport = () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const headers = ["Metrik / Parameter Platform", "Nilai / Jumlah"];
+    const rows = [
+      ["Tanggal Laporan Admin", new Date().toLocaleString("id-ID")],
+      ["Total Pengguna Terdaftar", o?.totalUsers ?? 0],
+      ["Total Setoran Akun", o?.totalSubmissions ?? 0],
+      ["Setoran Hari Ini", o?.todaySubmissions ?? 0],
+      ["Setoran Pending (Review)", o?.pendingSubmissions ?? 0],
+      ["Penarikan Pending (Proses)", o?.pendingWithdrawals ?? 0],
+      ["Total Verifikasi Pending", o?.pendingVerifications ?? 0],
+      ["Tiket Dukungan Terbuka", o?.openTickets ?? 0],
+      ["Total Saldo Dibayar (Tarik)", formatRp(o?.totalPaid ?? 0)],
+    ];
+
+    downloadCSV(`Laporan_Admin_S3L_RYU88_${todayStr}.csv`, headers, rows);
+    toast.success("Laporan statistik admin berhasil diunduh (CSV)!");
+  };
+
   return (
-    <NeoCard className="p-3">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-        {label}
-      </p>
-      <p className="neo-heading mt-1 text-xl">{value}</p>
-    </NeoCard>
+    <div className="space-y-3">
+      {/* Real-time Status & Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border-[3px] border-ink bg-card px-4 py-2.5 shadow-neo-sm">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex size-3">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex size-3 rounded-full bg-emerald-500 border border-ink"></span>
+          </span>
+          <p className="font-display text-xs font-black uppercase tracking-wider text-foreground">
+            REAL-TIME DATA OVERVIEW
+          </p>
+          <NeoBadge tone="primary">Live</NeoBadge>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+          <span className="hidden sm:inline">Terakhir diperbarui: {lastUpdated}</span>
+          <button
+            type="button"
+            onClick={handleDownloadAdminReport}
+            className="neo-press flex items-center gap-1.5 rounded-md border-2 border-ink bg-secondary px-2.5 py-1 text-xs font-bold uppercase shadow-neo-sm text-secondary-foreground hover:opacity-90"
+          >
+            <Download className="size-3.5" />
+            <span>Report CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isFetching}
+            className="neo-press flex items-center gap-1.5 rounded-md border-2 border-ink bg-card px-2.5 py-1 text-xs font-bold uppercase shadow-neo-sm hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw className={`size-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+            <span>{isFetching ? "Memuat..." : "Refresh Data"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Primary Overview Cards Grid with Neo-Brutalism Styling */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Card 1: Total Users */}
+        <div className="neo-card relative overflow-hidden border-[4px] border-ink bg-card p-5 shadow-neo-lg">
+          <div className="absolute -right-3 -top-3 size-20 rounded-full border-[3px] border-ink bg-info/20 p-4 opacity-30 pointer-events-none">
+            <Users className="size-full text-foreground" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-info px-2.5 py-1 font-display text-xs font-black uppercase tracking-wider text-info-foreground shadow-neo-sm">
+              <Users className="size-3.5" /> Total Pengguna
+            </span>
+            <NeoBadge tone="neutral">User DB</NeoBadge>
+          </div>
+          <div className="mt-4 flex items-baseline justify-between">
+            <div>
+              <p className="neo-heading text-4xl sm:text-5xl">{o?.totalUsers ?? 0}</p>
+              <p className="mt-1 text-xs font-bold uppercase text-muted-foreground">
+                Pengguna terdaftar di platform
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Total Setoran */}
+        <div className="neo-card relative overflow-hidden border-[4px] border-ink bg-card p-5 shadow-neo-lg">
+          <div className="absolute -right-3 -top-3 size-20 rounded-full border-[3px] border-ink bg-primary/20 p-4 opacity-30 pointer-events-none">
+            <Inbox className="size-full text-foreground" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-primary px-2.5 py-1 font-display text-xs font-black uppercase tracking-wider text-primary-foreground shadow-neo-sm">
+              <Inbox className="size-3.5" /> Total Setoran
+            </span>
+            <NeoBadge tone="primary">Setoran Akun</NeoBadge>
+          </div>
+          <div className="mt-4">
+            <p className="neo-heading text-4xl sm:text-5xl">{o?.totalSubmissions ?? 0}</p>
+            <div className="mt-2 flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
+              <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 border border-ink text-foreground">
+                <TrendingUp className="size-3 text-emerald-600" /> Hari Ini: {o?.todaySubmissions ?? 0}
+              </span>
+              <span>• Total akun disetor</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Pending Verification Requests */}
+        <div
+          className={`neo-card relative overflow-hidden border-[4px] border-ink p-5 shadow-neo-lg ${
+            (o?.pendingVerifications ?? 0) > 0 ? "bg-amber-100/90 dark:bg-amber-950/80" : "bg-card"
+          }`}
+        >
+          <div className="absolute -right-3 -top-3 size-20 rounded-full border-[3px] border-ink bg-warning/20 p-4 opacity-30 pointer-events-none">
+            <Clock className="size-full text-foreground" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-warning px-2.5 py-1 font-display text-xs font-black uppercase tracking-wider text-warning-foreground shadow-neo-sm">
+              <Clock className="size-3.5" /> Permintaan Verifikasi
+            </span>
+            <NeoBadge tone={(o?.pendingVerifications ?? 0) > 0 ? "warning" : "neutral"}>
+              {(o?.pendingVerifications ?? 0) > 0 ? "Pending ACC" : "Selesai"}
+            </NeoBadge>
+          </div>
+          <div className="mt-4">
+            <p className="neo-heading text-4xl sm:text-5xl text-amber-950 dark:text-amber-100">
+              {o?.pendingVerifications ?? 0}
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-card px-2 py-0.5 font-display text-[11px] font-bold uppercase shadow-neo-sm">
+                Setoran: <strong className="text-amber-700 dark:text-amber-300">{o?.pendingSubmissions ?? 0}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-card px-2 py-0.5 font-display text-[11px] font-bold uppercase shadow-neo-sm">
+                Penarikan: <strong className="text-amber-700 dark:text-amber-300">{o?.pendingWithdrawals ?? 0}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary Metrics Bar */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="rounded-md border-[3px] border-ink bg-card p-3 shadow-neo-sm">
+          <div className="flex items-center gap-2">
+            <DollarSign className="size-4 text-emerald-600 shrink-0" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Saldo Dibayar</p>
+          </div>
+          <p className="neo-heading mt-1 text-lg sm:text-xl text-emerald-600 dark:text-emerald-400">
+            {formatRp(o?.totalPaid ?? 0)}
+          </p>
+        </div>
+
+        <div className="rounded-md border-[3px] border-ink bg-card p-3 shadow-neo-sm">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="size-4 text-sky-600 shrink-0" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tiket Support Terbuka</p>
+          </div>
+          <p className="neo-heading mt-1 text-lg sm:text-xl">
+            {o?.openTickets ?? 0}
+          </p>
+        </div>
+
+        <div className="col-span-2 md:col-span-1 rounded-md border-[3px] border-ink bg-card p-3 shadow-neo-sm">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-primary shrink-0" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Status Sistem Admin</p>
+          </div>
+          <p className="neo-heading mt-1 text-sm text-primary">
+            S3L RYU88 ACTIVE
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -527,12 +744,12 @@ function SettingsTab() {
     <NeoCard>
       <div className="mb-4 flex items-center justify-between border-b-[3px] border-ink pb-3">
         <div>
-          <h2 className="neo-heading text-lg">Pengaturan Sistem Admin (Ryuu0508)</h2>
+          <h2 className="neo-heading text-lg">Pengaturan Sistem Admin</h2>
           <p className="text-xs font-semibold text-muted-foreground">
             Atur rate, rules hari ini, kuota, max baris, pengumuman, dan kontak sosial.
           </p>
         </div>
-        <NeoBadge tone="primary">Admin Ryuu0508</NeoBadge>
+        <NeoBadge tone="primary">Admin System</NeoBadge>
       </div>
 
       <form
@@ -676,7 +893,7 @@ function SettingsTab() {
           <NeoInput
             value={text("tiktok_link")}
             onChange={(e) => set("tiktok_link", e.target.value)}
-            placeholder="https://tiktok.com/@ryuu0508"
+            placeholder="https://tiktok.com/@username"
           />
         </div>
 
@@ -685,7 +902,7 @@ function SettingsTab() {
           <NeoInput
             value={text("announcement_title")}
             onChange={(e) => set("announcement_title", e.target.value)}
-            placeholder="PENGUMUMAN RESMI ADMIN RYUU0508"
+            placeholder="PENGUMUMAN RESMI ADMIN"
           />
         </div>
 
@@ -835,7 +1052,7 @@ function TicketsTab() {
                 >
                   <div className="mb-1 flex items-center justify-between">
                     <span className="font-bold uppercase text-[10px]">
-                      {m.is_admin ? "🛡️ Admin Ryuu0508" : `👤 ${t.profiles?.username || "Pengguna"}`}
+                      {m.is_admin ? "🛡️ Admin" : `👤 ${t.profiles?.username || "Pengguna"}`}
                     </span>
                     <span className="text-[10px] text-muted-foreground">{fmtDate(m.created_at)}</span>
                   </div>
