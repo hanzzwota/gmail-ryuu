@@ -5,33 +5,26 @@ import type { Database, Enums } from "@/integrations/supabase/types";
 
 type Client = SupabaseClient<Database>;
 
-async function assertAdmin(supabase: Client, userId: string) {
-  const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-  if (data === true) return;
+async async function assertAdmin(supabase: Client, userId: string) {
+  const { supabaseAdmin } = await import(
+    "@/integrations/supabase/client.server"
+  );
 
-  // Fallback: auto-promote known admin identifiers or first setup
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: profile } = await supabaseAdmin.from("profiles").select("username, email").eq("id", userId).maybeSingle();
-  const { count } = await supabaseAdmin.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "admin");
+  const { data: profile, error } = await supabaseAdmin
+    .from("profiles")
+    .select("username")
+    .eq("id", userId)
+    .maybeSingle();
 
-  const username = profile?.username?.toLowerCase() ?? "";
-  const email = profile?.email?.toLowerCase() ?? "";
-
-  const isKnownAdmin =
-    count === 0 ||
-    username === "ryuu0508" ||
-    email.includes("ryuu") ||
-    email === "rehanrehanhidayat57@gmail.com";
-
-  if (isKnownAdmin) {
-    await supabaseAdmin.from("user_roles").upsert(
-      { user_id: userId, role: "admin" },
-      { onConflict: "user_id,role" }
-    );
-    return;
+  if (error) {
+    throw new Error("Gagal memeriksa akun admin.");
   }
 
-  throw new Error("Akses ditolak. Pengguna bukan admin.");
+  const username = profile?.username?.trim().toLowerCase();
+
+  if (username !== "Ryuu0508") {
+    throw new Error("Akses ditolak. Pengguna bukan admin.");
+  }
 }
 
 async function admin() {
