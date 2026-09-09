@@ -48,9 +48,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const isAdminUser =
-    data?.profile?.username?.toLowerCase() === "ryuu0508" ||
-    data?.profile?.email?.toLowerCase() === "rehanrehanhidayat57@gmail.com";
-
+  data?.profile?.username?.trim().toLowerCase() === "Ryuu0508";
+  
   const signOut = async () => {
     localStorage.removeItem("sb-access-token");
     localStorage.removeItem("app_user_session");
